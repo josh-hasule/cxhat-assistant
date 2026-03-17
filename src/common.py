@@ -26,7 +26,6 @@ def _detect_compute_dtype():
         # fp16 training requires GradScaler (no impl), fallback to fp32. 
         return torch.float32, f"auto-detected: CUDA SM {capability[0]}{capability[1]} (pre-ampere, bf16 not supported, using fp32)"
     return torch.float32, "auto-detected: no CUDA (CPU/MPS)"
-
 COMPUTE_DTYPE, COMPUTE_DTYPE_REASON = _detect_compute_dtype()
 
 class ColoredFormatter(logging.Formatter):
@@ -59,14 +58,14 @@ def setup_default_logging():
     handler.setFormatter(ColoredFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
     logging.basicConfig(
         level=logging.INFO, 
-        handler=[handler]
+        handlers=[handler]
     )
 
 setup_default_logging()
 logger = logging.getLogger(__name__)
 
 
-def get_basic_dir():
+def get_base_dir():
     # co-locate nanochat intermediates with other cached data in ~/cache (by default)
     if os.environ.get('NANOCHAT_BASE_DIR'): 
         nanochat_dir = os.environ.get('NANOCHAT_BASE_DIR')
@@ -76,6 +75,7 @@ def get_basic_dir():
         nanochat_dir = os.path.join(home_dir, "src")
     os.makedirs(nanochat_dir, exist_ok=True)
     return nanochat_dir
+
 
 
 def download_file_with_lock(url, filename, postprocess_fn=None): 

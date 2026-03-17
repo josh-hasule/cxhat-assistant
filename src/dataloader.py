@@ -47,15 +47,15 @@ def _document_batches(split, resume_state_dict, tokenizer_batch_size):
     while True: # iterate infinitely (multi-epoch)
         pq_idx = resume_pq_idx if first_pass else 0 
         while pq_idx < len(parquet_paths): 
-            filepath = parquet_paths[pg_idx]
+            filepath = parquet_paths[pq_idx]
             pf = pq.ParquetFile(filepath)
             # start from resume point if resuming on same file, otherwise from DDP rank 
-            if first_pass and (resume_rg_idx is not None) and (pg_idx == resume_pq_idx): 
+            if first_pass and (resume_rg_idx is not None) and (pq_idx == resume_pq_idx): 
                 base_idx = resume_rg_idx // ddp_world_size 
                 base_idx += 1  # advance by 1 so we don't repeat data after resuming 
                 rg_idx = base_idx * ddp_world_size + ddp_rank 
                 if rg_idx >= pf.num_row_groups: 
-                    pg_idx += 1 
+                    pq_idx += 1 
                     continue 
                 resume_rg_idx = None  # only do this once 
             else: 
@@ -64,9 +64,9 @@ def _document_batches(split, resume_state_dict, tokenizer_batch_size):
                 rg = pf.read_row_group(rg_idx)
                 batch = rg.column('text').to_pylist()
                 for i in range(0, len(batch), tokenizer_batch_size):
-                    yield batch[i:i+tokenizer_batch_size], (pg_idx, rg_idx, epoch)
+                    yield batch[i:i+tokenizer_batch_size], (pq_idx, rg_idx, epoch)
                 rg_idx += ddp_world_size 
-            pg_idx += 1 
+            pq_idx += 1 
         first_pass = False 
         epoch += 1 
 
@@ -96,11 +96,11 @@ def tokenizing_distributed_data_loader_with_state_bos_benefit(
     batches = _document_batches(split, resume_state_dict, tokenizer_batch_size)
     bos_token = tokenizer.bos_token_id()
     doc_buffer = []
-    pg_idx, rg_idx, epoch = 0, 0, 1 
+    pq_idx, rg_idx, epoch = 0, 0, 1 
 
     def refill_buffer():
         nonlocal pq_idx, rg_idx, epoch 
-        doc_batch, (pg_idx, rg_idx, epoch) = next(batches)
+        doc_batch, (pq_idx, rg_idx, epoch) = next(batches)
         token_lists = tokenizer.encode(doc_batch, prepend=bos_token, num_threads=tokenizer_threads)
         for tokens in token_lists:
             doc_buffer.append(tokens) 
@@ -164,7 +164,4 @@ def tokenizing_distributed_data_loader_bos_bestfit(*args, **kwargs):
         yield inputs, targets 
 
 
-
-
-                    
 
